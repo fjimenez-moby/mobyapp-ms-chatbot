@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MobyBot - Chatbot con RAG</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 25px;
+            height: 600px;
+            overflow-y: auto;
+        }
+
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        /* Panel de carga de documentos */
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            background-color: #f9f9f9;
+            border-color: #999;
+        }
+
+        .upload-area.dragging {
+            background-color: #f0f0f0;
+            border-color: #666;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .upload-btn:hover {
+            background: #0056b3;
+        }
+
+        .document-list {
+            margin-top: 20px;
+        }
+
+        .document-item {
+            background: #f9f9f9;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .document-status {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Panel de chat */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding-right: 10px;
+        }
+
+        .message {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot {
+            background: #f1f3f5;
+            color: #333;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message.bot .sources {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #007bff;
+        }
+
+        .send-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+
+            .panel {
+                height: auto;
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Panel de carga de documentos -->
+        <div class="panel">
+            <h2>📁 Gestión de Documentos</h2>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <p><strong>Arrastra archivos PDF aquí</strong></p>
+                <p>o</p>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Seleccionar Archivos
+                </button>
+                <input type="file" id="fileInput" class="file-input" multiple accept=".pdf">
+            </div>
+
+            <div class="document-list" id="documentList">
+                <!-- Los documentos aparecerán aquí -->
+            </div>
+
+            <div class="stats" id="stats">
+                <strong>Estadísticas:</strong><br>
+                Documentos procesados: <span id="docCount">0</span><br>
+                Vectores almacenados: <span id="vectorCount">-</span>
+            </div>
+        </div>
+
+        <!-- Panel de chat -->
+        <div class="panel">
+            <h2>🤖 MobyBot - Asistente Virtual</h2>
+
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message bot">
+                        <strong>MobyBot:</strong><br>
+                        Soy MobyBot, tu asistente virtual de MobyDigital.
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <input type="text" id="chatInput" class="chat-input"
+                           placeholder="Escribe tu pregunta aquí..."
+                           onkeypress="handleKeyPress(event)">
+                    <button id="sendBtn" class="send-btn" onclick="sendMessage()">
+                        Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8086';
+        let documents = [];
+
+        // Configurar drag & drop
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+            uploadFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            uploadFiles(Array.from(e.target.files));
+        });
+
+        // Subir archivos
+        async function uploadFiles(files) {
+            for (const file of files) {
+                // Verificar si el documento ya existe
+                const existingDoc = documents.find(doc => doc.name === file.name);
+                if (existingDoc) {
+                    alert(`El documento "${file.name}" ya está cargado en el sistema.`);
+                    continue;
+                }
+                await uploadSingleFile(file);
+            }
+            updateStats();
+        }
+
+        async function uploadSingleFile(file) {
+            const documentItem = createDocumentItem(file.name, 'processing');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/documents/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    updateDocumentStatus(file.name, 'completed');
+                    documents.push({
+                        name: file.name,
+                        id: result.document.id,
+                        chunks: result.chunksProcessed
+                    });
+                } else {
+                    updateDocumentStatus(file.name, 'error');
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                updateDocumentStatus(file.name, 'error');
+            }
+        }
+
+        function createDocumentItem(fileName, status) {
+            const documentList = document.getElementById('documentList');
+            const item = document.createElement('div');
+            item.className = 'document-item';
+            item.id = `doc-${fileName}`;
+            item.innerHTML = `
+                <span>📄 ${fileName}</span>
+                <span class="document-status status-${status}">${getStatusText(status)}</span>
+            `;
+            documentList.appendChild(item);
+            return item;
+        }
+
+        function updateDocumentStatus(fileName, status) {
+            const item = document.getElementById(`doc-${fileName}`);
+            if (item) {
+                const statusSpan = item.querySelector('.document-status');
+                statusSpan.className = `document-status status-${status}`;
+                statusSpan.textContent = getStatusText(status);
+            }
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'processing': return 'Procesando...';
+                case 'completed': return 'Completado';
+                case 'error': return 'Error';
+                default: return status;
+            }
+        }
+
+        // Cargar documentos existentes
+        async function loadExistingDocuments() {
+            try {
+                const response = await fetch(`${API_BASE}/api/documents`);
+                const result = await response.json();
+
+                console.log('API Response:', result); // Debug
+
+                if (result.success && result.documents) {
+                    documents = result.documents.map(doc => ({
+                        name: doc.fileName,
+                        id: doc.id,
+                        chunks: 0 // DocumentDTO no tiene chunksProcessed
+                    }));
+
+                    // Mostrar documentos en la lista
+                    result.documents.forEach(doc => {
+                        // El status en DocumentDTO se llama "status" y viene como string
+                        const status = doc.status === 'COMPLETED' ? 'completed' :
+                                      doc.status === 'FAILED' ? 'error' : 'processing';
+                        createDocumentItem(doc.fileName, status);
+                    });
+
+                    console.log(`Loaded ${documents.length} existing documents`);
+                }
+            } catch (error) {
+                console.error('Error loading existing documents:', error);
+            }
+        }
+
+        // Actualizar estadísticas
+        async function updateStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/vectors/stats`);
+                const stats = await response.json();
+
+                document.getElementById('docCount').textContent = documents.length;
+                document.getElementById('vectorCount').textContent = stats.totalVectors || 0;
+            } catch (error) {
+                console.error('Error getting stats:', error);
+            }
+        }
+
+        // Chat functions
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Deshabilitar input
+            input.disabled = true;
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<div class="loading"></div>';
+
+            // Mostrar mensaje del usuario
+            addMessage(message, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/chat/message`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: message
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addMessage(result.response, 'bot', result.sourceDocuments);
+                } else {
+                    addMessage('Lo siento, hubo un error al procesar tu pregunta.', 'bot');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                addMessage('Error de conexión. Por favor, intenta nuevamente.', 'bot');
+            } finally {
+                // Rehabilitar input
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Enviar';
+                input.focus();
+            }
+        }
+
+        function addMessage(text, type, sources = null) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            let content = `<strong>${type === 'user' ? 'Tú' : 'MobyBot'}:</strong><br>${text}`;
+
+            if (sources && sources.length > 0) {
+                content += `<div class="sources"><strong>Fuentes:</strong> ${sources.join(', ')}</div>`;
+            }
+
+            messageDiv.innerHTML = content;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Cargar documentos y estadísticas al iniciar
+        loadExistingDocuments();
+        updateStats();
+    </script>
+</body>
+</html>

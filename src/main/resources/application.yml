@@ -1,0 +1,113 @@
+server:
+  port: ${CHATBOT_PORT:8086}
+
+spring:
+  application:
+    name: ms-chatbot
+
+  config:
+    import: optional:classpath:/dev.properties
+
+  # Base de datos H2 persistente
+  datasource:
+    url: jdbc:h2:file:./data/chatbot_db
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # Configuración H2
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # JPA/Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true
+
+  # Cache Configuration disabled
+  cache:
+    type: none
+
+  # Configuración de archivos multipart
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  # Spring AI Vertex Configuration
+  ai:
+    vertex:
+      ai:
+        gemini:
+          project-id: ${VERTEX_AI_PROJECT_ID:your-project-id}
+          location: ${VERTEX_AI_LOCATION:us-central1}
+          api-key: ${VERTEX_AI_API_KEY:}
+          chat:
+            model: gemini-1.5-flash
+            options:
+              temperature: 0.3
+              max-output-tokens: 1024
+          embedding:
+            model: text-embedding-004
+
+# Eureka Client
+eureka:
+  client:
+    service-url:
+      defaultZone: ${URL_EUREKA:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+# Configuración del Chatbot
+chatbot:
+  # Legacy Gemini (for compatibility)
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: gemini-2.0-flash-exp
+    embedding-model: text-embedding-004
+    temperature: 0.3
+    max-tokens: 1024
+  # Pinecone Vector Database
+  pinecone:
+    api-key: ${PINECONE_API_KEY:your-pinecone-api-key}
+    index-name: ${PINECONE_INDEX_NAME:mobyapp}
+    environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+
+  # Almacenamiento de archivos
+  storage:
+    path: ${CHATBOT_STORAGE_PATH:./storage/documents}
+
+  # Procesamiento de PDFs
+  processing:
+    chunk-size: 1000
+    chunk-overlap: 200
+    min-chunk-size: 100
+
+# Logging
+logging:
+  level:
+    com.mobydigital.chatbot: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: WARN
+    root: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
